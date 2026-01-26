@@ -118,3 +118,39 @@ check_ltm_object() {
     echo "OFFLINE   : $OFFLINE"
     echo "UNKNOWN   : $UNKNOWN"
 }
+
+#!/bin/bash
+set -euo pipefail
+
+source ./config.sh
+source ./functions.sh
+source ./checks_afm.sh
+source ./checks_asm.sh
+source ./checks_gtm.sh
+source ./checks_ltm.sh
+
+mkdir -p "$OUTDIR"
+
+while read -r HOST; do
+    [[ -z "$HOST" || "$HOST" =~ ^# ]] && continue
+
+    OUTFILE="$OUTDIR/${HOST}_${PHASE}_${DATE}.txt"
+    echo "Processing $HOST → $OUTFILE"
+
+    {
+        echo "HOST  : $HOST"
+        echo "PHASE : $PHASE"
+        echo "DATE  : $(date)"
+        echo "=============================="
+
+        check_afm "$HOST"
+        check_asm "$HOST"
+        check_gtm "$HOST"
+
+        check_ltm_object "$HOST" "virtual"     "VIRTUAL SERVERS"
+        check_ltm_object "$HOST" "pool"        "POOLS"
+        check_ltm_object "$HOST" "pool_member" "POOL MEMBERS"
+
+    } > "$OUTFILE" 2>&1
+
+done < "$HOSTS_FILE"
