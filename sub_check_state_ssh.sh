@@ -1,19 +1,20 @@
 #!/bin/bash
 
-sshpass -e ssh "$HOST" "tmsh load sys config verify" 2>&1 \
-| tee "$LOGFILE" \
-| awk '
-    /^Error:/ { print; next }
-    /^there were warnings:/ { inwarn=1; next }
-    inwarn { print }
-'
+OUT=$(sshpass -e ssh "$HOST" "tmsh load sys config verify" 2>&1 | tee "$LOGFILE")
 
-RESULT=$(sshpass -e ssh "$HOST" "tmsh load sys config verify" 2>&1 | tee "$LOGFILE")
+ERR_COUNT=$(echo "$OUT" | grep -c '^Error:')
+WARN_COUNT=$(echo "$OUT" | grep -c '^there were warnings:')
 
-if echo "$RESULT" | grep -q '^Error:'; then
+if [[ $ERR_COUNT -gt 0 ]]; then
     echo "❌ Verification FAILED"
-elif echo "$RESULT" | grep -q '^there were warnings:'; then
+elif [[ $WARN_COUNT -gt 0 ]]; then
     echo "⚠ Verification OK with warnings"
 else
     echo "✔ Verification OK"
 fi
+
+echo "$OUT" | awk '
+    /^Error:/ { print }
+    /^there were warnings:/ { inwarn=1; next }
+    inwarn { print }
+'
