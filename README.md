@@ -58,8 +58,8 @@ f5-automation-toolkit/
 |  
 |--- backups/  
 |--- logs/  
-|      |--- before/  
-|      |--- after/  
+|------|--- before/  
+|------|--- after/  
 |--- tmp/  
 |--- run_menu.sh  
 |--- sub_xxx.sh  
