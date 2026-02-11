@@ -52,16 +52,17 @@ Compare BEFORE / AFTER summary sections only.
 
 ---
 
-## 📂 Repository Structure 
+## 📂 Structure 
 
-Arborescence :  
-| --- backups  
-| --- logs  
-| --- | --- before  
-| --- | --- after  
-| --- tmp  
-| --- run_menu.sh  
-| --- sub_xxx.sh  
-| --- fonctions.sh  
-| --- config.sh  
-| --- hosts.txt  
+f5-automation-toolkit/
+|
+|--- backups/  
+|--- logs/  
+|      |--- before/  
+|      |--- after/  
+|--- tmp/  
+|--- run_menu.sh  
+|--- sub_xxx.sh  
+|--- fonctions.sh  
+|--- config.sh  
+|--- hosts.txt  
