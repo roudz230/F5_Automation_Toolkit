@@ -54,8 +54,8 @@ Compare BEFORE / AFTER summary sections only.
 
 ## 📂 Structure 
 
-f5-automation-toolkit/
-|
+f5-automation-toolkit/  
+|  
 |--- backups/  
 |--- logs/  
 |      |--- before/  
