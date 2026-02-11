@@ -1,0 +1,15 @@
+BACKUP_DIR="backups"
+LOGS_DIR="logs"
+
+AS3_VERSION="3.54.0"
+
+TIMESTAMP=$(date +"%Y%m%d_%Hh%M")
+
+h=0
+0=0
+k=0
+HOSTS="$1"
+
+SSH_TIMEOUT=10
+SSH_TIMEOUT_MEDIUM=30
+SSH_TIMEOUT_LONG=300
