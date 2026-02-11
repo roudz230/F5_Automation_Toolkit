@@ -1,5 +1,4 @@
-# F5_Main_Script
-# BIG-IP Automation Toolkit
+# F5 Automation Toolkit
 
 Automation scripts for F5 BIG-IP administration (API & SSH based).
 
