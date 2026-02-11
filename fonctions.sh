@@ -1,1 +1,11 @@
-test
+# Couleurs & Symboles
+RESET="le[Om"
+BOLD="le[1m"
+RED="le[31m"
+GREEN="\e[32m"
+YELLOW="le[33m"
+BLUE="\e[34m" CYAN-"\e[36m"
+OK=*$-{BOLD)$(GREEN} \u2705$-(RESET)"
+ERR="$-(BOLD}${RED} \u274C$(RESET)"
+WARN="$(BOLD}$(YELLOW}\u26A1$(RESET)"
+INF="$-(BOLD)${CYAN} \2755$ (RESET)"
