@@ -9,9 +9,7 @@ check_hosts_file "$HOSTS"
 while true; do
     #clear
     echo "=============================================================="
-    echo ""
     echo "                        F5 Admin Toolkit                      "
-    echo ""
     echo "=============================================================="
     echo "1  - Modifier les mdp admin/root BigIP"
     echo "2  - Modifier les mdp admin/root F5OS"
