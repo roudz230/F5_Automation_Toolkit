@@ -55,13 +55,13 @@ Compare BEFORE / AFTER summary sections only.
 ## 📂 Structure 
 
 f5-admin-toolkit/  
-├── backups/  
-├── logs/  
-│...├── before/  
-│...└── after/  
-├── tmp/  
-├── run_menu.sh  
-├── sub_xxx.sh  
-├── fonctions.sh  
-├── config.sh  
-└── hosts.txt  
+├─ backups/  
+├─ logs/  
+├...├── before/  
+├...└── after/  
+├─ tmp/  
+├─ run_menu.sh  
+├─ sub_xxx.sh  
+├─ fonctions.sh  
+├─ config.sh  
+└─ hosts.txt  
