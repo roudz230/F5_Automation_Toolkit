@@ -19,7 +19,7 @@ echo "=== Nettoyage des répertoires ==="
 for DIR in "${DIRS[@]}"; do
     if [[ -d "$DIR" ]]; then
         echo "Nettoyage : $DIR"
-        rm -rf "$DIR"/*
+        rm -f "$DIR"/*
     else
         echo "Dossier absent (ignoré) : $DIR"
     fi
