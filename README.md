@@ -1,6 +1,6 @@
 # F5 Admin Toolkit
 
-Automation scripts for F5 BIG-IP administration (API & SSH based).
+Automation scripts for F5 BIG-IP/F5OS administration (API & SSH based).
 
 This repository contains reusable Bash scripts designed to automate
 common BIG-IP operational tasks such as:
