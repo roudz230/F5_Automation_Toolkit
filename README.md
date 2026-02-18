@@ -55,24 +55,13 @@ Compare BEFORE / AFTER summary sections only.
 ## 📂 Structure 
 
 f5-admin-toolkit/  
-|  
-|--- backups/  
-|--- logs/  
-|------|--- before/  
-|------|--- after/  
-|--- tmp/  
-|--- run_menu.sh  
-|--- sub_xxx.sh  
-|--- fonctions.sh  
-|--- config.sh  
-|--- hosts.txt  
-
-bigip-automation-suite/
-├── run_menu.sh
-├── config_example.sh
-├── fonctions.sh
-├── scripts/
-│   ├── sub_create_ucs.sh
-│   ├── sub_check_as3.sh
-│   └── etc...
-└── README.md
+├── backups/  
+├── logs/  
+│   ├── before/  
+│   └── after/  
+├── tmp/  
+├── run_menu.sh  
+├── sub_xxx.sh  
+├── fonctions.sh  
+├── config.sh  
+└── hosts.txt  
