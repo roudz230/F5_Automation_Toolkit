@@ -58,8 +58,8 @@ while true; do
         ;;
 
     5)
-        echo ">>> Lancement de sub_create_ucs.sh"
-        ./sub_create_ucs.sh "$HOSTS"
+        echo ">>> Lancement de sub_create_ucs_parallel.sh"
+        ./sub_create_ucs_parallel.sh "$HOSTS"
         read -p "Appuyez sur Entrée pour continuer..."
         ;;
 
