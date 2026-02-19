@@ -1,136 +1,214 @@
 #!/bin/bash
-set -euo pipefail
 
-HOSTS_FILE="$1"          # fichier hosts
-PHASE="$2"               # before | after
-OUTDIR="./results"
-DATE="$(date +%Y%m%d_%H%M%S)"
+source "$(dirname "$0")/functions.sh"
+source "$(dirname "$0")/config.sh"
 
-API_USER="admin"
-API_PASS="password"
-API_PORT=443
+check_hosts_file "$HOSTS"
 
-mkdir -p "$OUTDIR"
-
-#######################################
-# Curl helper
-#######################################
 curl_api() {
     local HOST="$1"
     local URI="$2"
 
-    curl -sk -u "$API_USER:$API_PASS" \
-        "https://${HOST}:${API_PORT}${URI}"
+    curl -sk -u "$LOGIN:$LOGINPWD" \
+        "https://${HOST}${URI}"
 }
 
-#######################################
-# Check one BIG-IP
-#######################################
-check_host() {
+get_availability() {
+    local STATS="$1"
+
+    echo "$STATS" | jq -r '
+        .entries[]
+        .nestedStats.entries["status.availabilityState"].description
+        // "unknown"
+    '
+}
+
+check_afm() {
     local HOST="$1"
-    local OUTFILE="$OUTDIR/${HOST}_${PHASE}_${DATE}.txt"
 
-    {
-        echo "========================================"
-        echo "HOST  : $HOST"
-        echo "PHASE : $PHASE"
-        echo "DATE  : $(date)"
-        echo "========================================"
-        echo
+    echo
+    echo "### AFM policies"
 
-        ############################
-        # AFM
-        ############################
-        echo "### AFM POLICIES"
-        AFM_JSON=$(curl_api "$HOST" "/mgmt/tm/security/firewall/policy")
+    AFM_JSON=$(curl_api "$HOST" "/mgmt/tm/security/firewall/policy")
+    echo "$AFM_JSON" | jq -r '.items[].name' 2>/dev/null || echo "N/A"
 
-        echo "$AFM_JSON" | jq -r '.items[].name' 2>/dev/null || echo "N/A"
-        echo "AFM_POLICY_COUNT: $(echo "$AFM_JSON" | jq '.items | length' 2>/dev/null || echo 0)"
-        echo
+    AFM_COUNT=$(echo "$AFM_JSON" | jq '.items | length' 2>/dev/null || echo 0)
+    echo "AFM policy count: $AFM_COUNT"
+}
 
-        ############################
-        # ASM
-        ############################
-        echo "### ASM POLICIES"
-        ASM_JSON=$(curl_api "$HOST" "/mgmt/tm/asm/policies")
+check_asm() {
+    local HOST="$1"
 
-        echo "$ASM_JSON" | jq -r '.items[].name' 2>/dev/null || echo "N/A"
-        echo "ASM_POLICY_COUNT: $(echo "$ASM_JSON" | jq '.items | length' 2>/dev/null || echo 0)"
-        echo
+    echo
+    echo "### ASM policies"
 
-        ############################
-        # WIDEIP
-        ############################
-        echo "### WIDEIP STATUS"
-        WIDEIP_JSON=$(curl_api "$HOST" "/mgmt/tm/gtm/wideip/a")
+    ASM_JSON=$(curl_api "$HOST" "/mgmt/tm/asm/policies")
+    echo "$ASM_JSON" | jq -r '.items[].name' 2>/dev/null || echo "N/A"
 
-        echo "$WIDEIP_JSON" | jq -r '
-            .items[] |
-            "\(.name) - \(.status.availabilityState)"
-        ' 2>/dev/null || echo "N/A"
+    ASM_COUNT=$(echo "$ASM_JSON" | jq '.items | length' 2>/dev/null || echo 0)
+    echo "ASM policy count: $ASM_COUNT"
+}
 
-        echo "WIDEIP_TOTAL: $(echo "$WIDEIP_JSON" | jq '.items | length' 2>/dev/null || echo 0)"
-        echo "WIDEIP_AVAILABLE: $(echo "$WIDEIP_JSON" | jq '[.items[] | select(.status.availabilityState=="available")] | length' 2>/dev/null || echo 0)"
-        echo "WIDEIP_OFFLINE: $(echo "$WIDEIP_JSON" | jq '[.items[] | select(.status.availabilityState!="available")] | length' 2>/dev/null || echo 0)"
-        echo
+check_gtm() {
+    local HOST="$1"
 
-        ############################
-        # VIRTUAL SERVERS (STATS)
-        ############################
-        echo "### VIRTUAL SERVERS STATUS"
+    echo
+    echo "### GTM WideIP status"
 
-        VS_LIST=$(curl_api "$HOST" "/mgmt/tm/ltm/virtual?\$select=name,partition,subPath")
+    WIDEIP_JSON=$(curl_api "$HOST" "/mgmt/tm/gtm/wideip/a")
 
-        VS_TOTAL=0
-        VS_AVAILABLE=0
-        VS_OFFLINE=0
+    echo "$WIDEIP_JSON" | jq -r '.items[] | "\(.name) - \(.status.availabilityState)"' 2>/dev/null || echo "N/A"
 
-        echo "$VS_LIST" | jq -c '.items[]' | while read -r VS; do
-            PARTITION=$(echo "$VS" | jq -r '.partition')
-            NAME=$(echo "$VS" | jq -r '.name')
-            SUBPATH=$(echo "$VS" | jq -r '.subPath // empty')
+    WIDEIP_AVAILABLE=$(echo "$WIDEIP_JSON" | jq '[.items[] | select(.status.availabilityState=="available")] | length' 2>/dev/null || echo 0)
+    WIDEIP_OFFLINE=$(echo "$WIDEIP_JSON" | jq '[.items[] | select(.status.availabilityState!="available")] | length' 2>/dev/null || echo 0)
+
+    echo "WideIP available: $WIDEIP_AVAILABLE"
+    echo "WideIP offline : $WIDEIP_OFFLINE"
+}
+
+check_ltm() {
+    local HOST="$1"
+    local TYPE="$2"
+    local TITLE="$3"
+
+    echo
+    echo "### $TITLE STATUS"
+
+    local LIST_JSON
+    local LIST=()
+
+    case "$TYPE" in
+        virtual)
+            LIST_JSON=$(curl_api "$HOST" "/mgmt/tm/ltm/virtual?\$select=name,partition,subPath")
+            mapfile -t LIST < <(
+                echo "$LIST_JSON" | jq -r '
+                    .items[] | "\(.partition)|\(.subPath // "")|\(.name)"
+                '
+            )
+            ;;
+        pool)
+            LIST_JSON=$(curl_api "$HOST" "/mgmt/tm/ltm/pool?\$select=name,partition,subPath")
+            mapfile -t LIST < <(
+                echo "$LIST_JSON" | jq -r '
+                    .items[] | "\(.partition)|\(.subPath // "")|\(.name)"
+                '
+            )
+            ;;
+        pool_member)
+            POOLS_JSON=$(curl_api "$HOST" "/mgmt/tm/ltm/pool?\$select=name,partition,subPath")
+            mapfile -t LIST < <(
+                echo "$POOLS_JSON" | jq -r '
+                    .items[] | "\(.partition)|\(.subPath // "")|\(.name)"
+                '
+            )
+            ;;
+        *)
+            echo "Unknown type: $TYPE"
+            return 1
+            ;;
+    esac
+
+    local TOTAL=0 OK=0 OFFLINE=0 UNKNOWN=0
+
+    for ITEM in "${LIST[@]}"; do
+        IFS='|' read -r PARTITION SUBPATH NAME <<< "$ITEM"
+
+        if [[ "$TYPE" == "pool_member" ]]; then
 
             if [[ -n "$SUBPATH" ]]; then
-                URI="/mgmt/tm/ltm/virtual/~${PARTITION}~${SUBPATH}~${NAME}/stats"
+                MEMBER_JSON=$(curl_api "$HOST" \
+                    "/mgmt/tm/ltm/pool/~${PARTITION}~${SUBPATH}~${NAME}/members")
+            else
+                MEMBER_JSON=$(curl_api "$HOST" \
+                    "/mgmt/tm/ltm/pool/~${PARTITION}~${NAME}/members")
+            fi
+
+            mapfile -t MEMBERS < <(
+                echo "$MEMBER_JSON" | jq -r '.items[].name'
+            )
+
+            for MEMBER in "${MEMBERS[@]}"; do
+                STATS=$(curl_api "$HOST" \
+                    "/mgmt/tm/ltm/pool/~${PARTITION}~${SUBPATH}~${NAME}/members/~Common~${MEMBER}/stats")
+
+                STATE=$(get_availability "$STATS")
+
+                echo "${PARTITION}/${NAME}/Common/${MEMBER} - $STATE"
+
+                ((TOTAL++))
+                case "$STATE" in
+                    available) ((OK++)) ;;
+                    offline) ((OFFLINE++)) ;;
+                    unknown*) ((UNKNOWN++)) ;;
+                esac
+            done
+
+        else
+            if [[ -n "$SUBPATH" ]]; then
+                URI="/mgmt/tm/ltm/${TYPE}/~${PARTITION}~${SUBPATH}~${NAME}/stats"
                 FULLNAME="${PARTITION}/${SUBPATH}/${NAME}"
             else
-                URI="/mgmt/tm/ltm/virtual/~${PARTITION}~${NAME}/stats"
+                URI="/mgmt/tm/ltm/${TYPE}/~${PARTITION}~${NAME}/stats"
                 FULLNAME="${PARTITION}/${NAME}"
             fi
 
             STATS=$(curl_api "$HOST" "$URI")
+            STATE=$(get_availability "$STATS")
 
-            AVAIL=$(echo "$STATS" | jq -r '
-                .entries[].nestedStats.entries.status.entries.availabilityState.description
-            ' 2>/dev/null || echo "unknown")
+            echo "$FULLNAME - $STATE"
 
-            echo "$FULLNAME - $AVAIL"
+            ((TOTAL++))
+            case "$STATE" in
+                available) ((OK++)) ;;
+                offline) ((OFFLINE++)) ;;
+                unknown*) ((UNKNOWN++)) ;;
+            esac
+        fi
+    done
 
-            ((VS_TOTAL++))
-            if [[ "$AVAIL" == "available" ]]; then
-                ((VS_AVAILABLE++))
-            else
-                ((VS_OFFLINE++))
-            fi
-        done
-
-        echo
-        echo "VS_TOTAL: $VS_TOTAL"
-        echo "VS_AVAILABLE: $VS_AVAILABLE"
-        echo "VS_OFFLINE: $VS_OFFLINE"
-
-    } > "$OUTFILE" 2>&1
+    echo
+    echo "### $TITLE SUMMARY"
+    echo "TOTAL     : $TOTAL"
+    echo "AVAILABLE : $OK"
+    echo "OFFLINE   : $OFFLINE"
+    echo "UNKNOWN   : $UNKNOWN"
 }
 
-#######################################
-# MAIN LOOP
-#######################################
-while IFS= read -r HOST; do
-    [[ -z "$HOST" ]] && continue
-    echo ">>> Checking $HOST"
-    check_host "$HOST"
-done < "$HOSTS_FILE"
+read -p "Saisir le login : " LOGIN
+read -sp "Saisir le mot de passe du compte $LOGIN : " LOGINPWD
+echo ""
+read -p "Saisir l'étape (before ou after) : " PHASE
+echo ""
 
-echo
-echo "✔ Checks completed"
-echo "Results in: $OUTDIR"
+AUTH="-u $LOGIN:$LOGINPWD"
+
+for HOST in $(cat "$HOSTS"); do
+    echo ""
+    echo "===================================================="
+    echo "Checks sur $HOST"
+    echo "===================================================="
+
+    LOGFILE="logs/${TIMESTAMP}_${HOST}_state_${PHASE}.log"
+    ((h++))
+
+    {
+        echo "=============================="
+        echo "HOST  : $HOST"
+        echo "PHASE : $PHASE"
+        echo "DATE  : $TIMESTAMP"
+        echo "=============================="
+        echo
+
+        check_afm "$HOST"
+        check_asm "$HOST"
+        check_gtm "$HOST"
+
+        check_ltm "$HOST" "virtual"     "VIRTUAL SERVERS"
+        check_ltm "$HOST" "pool"        "POOLS"
+        check_ltm "$HOST" "pool_member" "POOL MEMBERS"
+
+    } > "$LOGFILE" 2>&1
+
+done
+
+show_recap "$h" "$o" "$k"
