@@ -1,20 +1,163 @@
 #!/bin/bash
 
-OUT=$(sshpass -e ssh "$HOST" "tmsh load sys config verify" 2>&1 | tee "$LOGFILE")
+source "$(dirname "$0")/fonctions.sh"
+source "$(dirname "$0")/config.sh"
 
-ERR_COUNT=$(echo "$OUT" | grep -c '^Error:')
-WARN_COUNT=$(echo "$OUT" | grep -c '^there were warnings:')
+check_hosts_file "$HOSTS"
 
-if [[ $ERR_COUNT -gt 0 ]]; then
-    echo "❌ Verification FAILED"
-elif [[ $WARN_COUNT -gt 0 ]]; then
-    echo "⚠ Verification OK with warnings"
-else
-    echo "✔ Verification OK"
-fi
+read -p "Saisir le login (sauf root) : " LOGIN
+read -sp "Saisir le mot de passe du compte $LOGIN : " LOGINPWD
+echo ""
+read -p "Saisir l'étape (before ou after) : " PHASE
+PHASE="${PHASE,,}"
+echo ""
 
-echo "$OUT" | awk '
-    /^Error:/ { print }
-    /^there were warnings:/ { inwarn=1; next }
-    inwarn { print }
-'
+for HOST in $(cat "$HOSTS"); do
+    echo ""
+    echo "=============================================================="
+    echo "Checks sur $HOST"
+    echo "=============================================================="
+
+    LOGFILE="$LOGS_DIR/$PHASE/${TIMESTAMP}_${HOST}_state_${PHASE}.log"
+    ((h++))
+
+    sshpass -p "$LOGINPWD" ssh \
+        -o StrictHostKeyChecking=no \
+        -o ConnectTimeout=$SSH_TIMEOUT_LONG \
+        -o LogLevel=ERROR \
+        "$LOGIN@$HOST" << 'EOF' > "$LOGFILE" 2>&1
+
+bash
+
+# ARP
+echo
+echo
+echo "----- Check ARP -----"
+tmsh show net arp
+
+# Connection
+echo
+echo
+echo "----- Check Connections -----"
+tmsh show sys performance connections raw | grep -A 2 Active
+
+# Added from template CHECK AFM
+echo
+echo
+echo "----- Check AFM -----"
+tmsh -c "cd /; list security firewall policy recursive" | grep "firewall policy"
+
+# Added from template CHECK ASM
+echo
+echo
+echo "----- Check ASM -----"
+tmsh -c "cd /; list asm policy recursive" | grep "asm"
+
+# Added from template CHECK GTM
+echo
+echo
+echo "----- Check GTM -----"
+
+echo "== WideIP =="
+tmsh -c "show gtm wideip" | grep "Gtm::WideIp\\|Availability"
+
+echo "== WideIP Pool =="
+tmsh -c "show gtm pool" | grep "Gtm::Pool\\|Availability"
+
+echo "== WideIP Pool Members =="
+tmsh -c "show gtm pool a members" | grep "Gtm::Pool\\|Availability"
+
+echo "== GSLB Server =="
+tmsh -c "show gtm server" | grep "Gtm::Server\\|Availability"
+
+echo "== iquery =="
+tmsh -c "show gtm iquery" | grep -E "Server|version|Gtm|Connection Time|State" | grep -v "Type"
+
+# Added from template CHECK LTM
+echo
+echo
+echo "----- Check LTM -----"
+
+echo "== VS =="
+tmsh -c "cd /; show ltm virtual recursive" | grep "Ltm::Virtual\\|Availability"
+
+echo "== POOL & POOL MEMBER =="
+tmsh -c "cd /; show ltm pool recursive members" | grep "Ltm::Pool\\|Availability"
+
+echo
+
+echo "===== SUMMARY ====="
+
+# Added from template Status Summary AFM
+echo
+echo "----- Summary AFM -----"
+echo "Total : $(tmsh -c "cd /; list security firewall policy recursive" | grep "firewall policy" | wc -l)"
+
+# Added from template Status Summary ASM
+echo
+echo "----- Summary ASM -----"
+echo "Total : $(tmsh -c "cd /; list asm policy recursive" | grep "asm policy" | wc -l)"
+
+# Added from template Status Summary GTM
+echo
+echo "----- Summary GTM -----"
+echo "WideIP available : $(tmsh -c "show gtm wideip" | grep "Gtm::WideIp\\|Availability" | grep "available" | wc -l)"
+echo "WideIP offline : $(tmsh -c "show gtm wideip" | grep "Gtm::WideIp\\|Availability" | grep "offline" | wc -l)"
+echo "WideIP unknown : $(tmsh -c "show gtm wideip" | grep "Gtm::WideIp\\|Availability" | grep "unknown" | wc -l)"
+
+echo "WideIP Pool available : $(tmsh -c "show gtm pool" | grep "Gtm::Pool\\|Availability" | grep "available" | wc -l)"
+echo "WideIP Pool offline : $(tmsh -c "show gtm pool" | grep "Gtm::Pool\\|Availability" | grep "offline" | wc -l)"
+echo "WideIP Pool unknown : $(tmsh -c "show gtm pool" | grep "Gtm::Pool\\|Availability" | grep "unknown" | wc -l)"
+
+echo "GSLB Server available : $(tmsh -c "show gtm server" | grep "Gtm::Server\\|Availability" | grep "available" | wc -l)"
+echo "GSLB Server offline : $(tmsh -c "show gtm server" | grep "Gtm::Server\\|Availability" | grep "offline" | wc -l)"
+echo "GSLB Server unknown : $(tmsh -c "show gtm server" | grep "Gtm::Server\\|Availability" | grep "unknown" | wc -l)"
+
+# Added from template Status Summary LTM v2
+echo
+echo "----- Summary LTM -----"
+
+_LTM_VS=$(tmsh -c "cd /; show ltm virtual recursive" | grep "Ltm::Virtual\\|Availability")
+_LTM_POOL=$(tmsh -c "cd /; show ltm pool recursive" | grep "Ltm::Pool\\|Availability")
+_LTM_NODE=$(tmsh -c "cd /; show ltm node recursive" | grep "Ltm::Node\\|Availability")
+
+echo
+echo "== VS =="
+echo -n "VS available : " && echo "$_LTM_VS" | grep "available" | wc -l
+echo -n "VS offline : " && echo "$_LTM_VS" | grep "offline" | wc -l
+echo -n "VS unknown : " && echo "$_LTM_VS" | grep "unknown" | wc -l
+
+echo
+echo "== POOLS =="
+echo -n "POOL available : " && echo "$_LTM_POOL" | grep "available" | wc -l
+echo -n "POOL offline : " && echo "$_LTM_POOL" | grep "offline" | wc -l
+echo -n "POOL unknown : " && echo "$_LTM_POOL" | grep "unknown" | wc -l
+
+echo
+echo "== NODES =="
+echo -n "NODE available : " && echo "$_LTM_NODE" | grep "available" | wc -l
+echo -n "NODE offline : " && echo "$_LTM_NODE" | grep "offline" | wc -l
+echo -n "NODE unknown : " && echo "$_LTM_NODE" | grep "unknown" | wc -l
+
+echo
+echo "===== END SUMMARY ====="
+
+unset _LTM_VS
+unset _LTM_POOL
+unset _LTM_NODE
+
+EOF
+
+    RET=$?
+
+    if [[ $RET -eq 0 ]]; then
+        echo -e "Vérification effectuée $OK"
+        ((o++))
+    else
+        echo -e "Vérification en erreur $ERR"
+        ((k++))
+    fi
+
+done
+
+show_recap "$h" "$o" "$k"
