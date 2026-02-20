@@ -32,9 +32,9 @@ for HOST in $(cat "$HOSTS"); do
     HTTP_CODE=$(echo "$RESP" | tail -n1)
     BODY=$(echo "$RESP" | sed '$d')
 
-    if [ "$HTTP_CODE" = "200" ]; then
+    if [ "$HTTP_CODE" != "200" ]; then
         #echo -e "Backup généré $BACKUP_NAME $OK"
-    else
+    #else
         echo -e "Echec génération du backup sur $HOST $ERR"
         echo "$BODY" | tee -a "$LOGS_DIR/backup-$HOST-error.log"
         continue
