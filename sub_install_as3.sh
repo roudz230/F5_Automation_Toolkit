@@ -2,7 +2,7 @@
 
 # Script from https://clouddocs.f5.com/products/extensions/f5-appsvcs-extension/latest/userguide/installation.html
 
-source "$(dirname "$0")/functions.sh"
+source "$(dirname "$0")/fonctions.sh"
 source "$(dirname "$0")/config.sh"
 
 check_hosts_file "$HOSTS"
