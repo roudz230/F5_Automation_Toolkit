@@ -14,6 +14,7 @@ AUTH="-u $LOGIN:$LOGINPWD"
 
 poll_sync() {
     local HOST=$1
+    #local AUTH="-u $LOGIN:$LOGINPWD"
 
     for i in {1..20}; do
         STATUS=$(curl -sk $AUTH \
@@ -26,7 +27,6 @@ poll_sync() {
 
         sleep 5
     done
-
     return 1
 }
 
@@ -38,13 +38,22 @@ for HOST in $(cat "$HOSTS"); do
 
     ((h++))
 
+    #AUTH="-u $LOGIN:$LOGINPWD"
+
     echo "" >> "$LOGFILE"
     echo "================ $HOST ================" >> "$LOGFILE"
     echo "" >> "$LOGFILE"
 
+    #ROLE=$(curl -sk $AUTH \
+    #    "https://$HOST/mgmt/tm/cm/failover-status" \
+    #    | jq -r '.entries[].nestedStats.entries.status.description')
+
     ROLE=$(curl -sk $AUTH \
         "https://$HOST/mgmt/tm/cm/failover-status" \
         | jq -r '.entries[].nestedStats.entries.status.description | select(. == "ACTIVE" or . == "STANDBY")')
+
+    #grepper -E du ROLE sur ACTIVE|STANDBY car plusieurs retours possible
+    #ROLE2=$(echo $ROLE | grep -E "ACTIVE|STANDBY|Unknown|UNKNOWN")
 
     echo "Role : $ROLE"
 
@@ -56,12 +65,17 @@ for HOST in $(cat "$HOSTS"); do
 
     echo "Role : $ROLE" >> "$LOGFILE"
 
+    #CHANGE=$(curl -sk $AUTH \
+    #    "https://$HOST/mgmt/tm/cm/sync-status" \
+    #    | jq -r '.entries[].nestedStats.entries.status.description | select(. == "Changes Pending")')
+
     CHANGE=$(curl -sk $AUTH \
         "https://$HOST/mgmt/tm/cm/sync-status" \
         | jq -r '.entries[].nestedStats.entries.status.description')
 
     echo "Sync Status : $CHANGE"
 
+    # Passer à == In Sync ? Au cas ou il y a un autre statut que Changes Pending, comme Initial sync..
     if [[ "$CHANGE" != "Changes Pending" ]]; then
         echo "Pas de synchro nécessaire"
         echo "Sync Status : $CHANGE - Pas de synchro nécessaire - au suivant" >> "$LOGFILE"
@@ -82,6 +96,11 @@ for HOST in $(cat "$HOSTS"); do
         curl -sk $AUTH "https://$HOST/mgmt/tm/cm/device-group" \
         | jq -r '.items[] | select(.type == "sync-failover") | .name'
     )
+
+    #printf 'DGROUPS[%d]=%q\n' "${!DGROUPS[@]}" "${DGROUPS[@]}"
+
+    #DG2=$(curl -sk $AUTH "https://$HOST/mgmt/tm/cm/device-group" | jq -r '.items[] | select(.type == "sync-failover") | .name')
+    #echo "$DG2"
 
     select DG in "${DGROUPS[@]}"; do
         [[ -n "$DG" ]] && break
