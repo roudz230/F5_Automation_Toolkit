@@ -54,6 +54,7 @@ Compare BEFORE / AFTER summary sections only.
 
 ## 📂 Structure 
 
+```text
 f5-admin-toolkit/  
 ├─ backups/  
 ├─ logs/  
